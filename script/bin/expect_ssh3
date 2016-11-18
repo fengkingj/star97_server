@@ -1,0 +1,47 @@
+#!/usr/bin/expect
+
+set host [lindex $argv 0]
+set username [lindex $argv 1]
+set password [lindex $argv 2]
+set bin_floder [lindex $argv 3]
+set bin_file [lindex $argv 4]
+
+set timeout 40
+spawn ssh $username@$host
+expect {
+     "*yes/no*"
+         {
+             send "yes\r"
+             expect "*password*" { send "$password\r"}
+         }
+     "*password:"
+         {
+             send "$password\n"
+         }
+     }
+
+set timeout 60
+
+#expect "*$username*" 
+#send "killall -9 $bin_file\r"
+#set timeout 300
+
+
+expect "*$username*" 
+send "cd $bin_floder/src\r"
+set timeout 300
+
+expect "*$username*" 
+send "make clean\r"
+set timeout 300
+
+expect "*$username*" 
+send "make \r"
+set timeout 300
+
+#expect "*$username*" 
+#send "exit\r"
+#set timeout 300
+
+interact
+

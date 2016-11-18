@@ -1,0 +1,26 @@
+#!/usr/bin/expect
+
+set timeout 100
+
+set host [lindex $argv 0]
+set username [lindex $argv 1]
+set password [lindex $argv 2]
+set from_folder [lindex $argv 3]
+set to_folder [lindex $argv 4]
+
+
+spawn scp -r $from_folder $username@$host:$to_folder/
+
+expect {
+     "*yes/no*"
+         {
+             send "yes\r"
+             expect "*password*" { send "$password\r"}
+         }
+     "*password:"
+         {
+             send "$password\n"
+         }
+     }
+
+expect eof
