@@ -74,6 +74,7 @@ int GateServer::Run()
 			tmLast = Timer::tmNow;
 			Config::Instance()->LoadConfig();
 		}
+		Monitor::MonitorQueue(ServiceManage::socket_msg_queue->Size(),ServiceManage::reply_client_queue->Size(),ServiceManage::request_radius_queue->Size());
 		if(Timer::tmNow - tmLast2 > MONITOR_LOG_TIME)
 		{
 			tmLast2 = Timer::tmNow;

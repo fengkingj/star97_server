@@ -14,5 +14,13 @@ public:
 	static int max_fd;
 	static int online_num;	
 	static unsigned int node_num;
+	
+	static void MonitorQueue(int _size1,int _size2,int _size3);
+	static long long queue1_size;
+	static long long queue1_count;
+	static long long queue2_size;
+	static long long queue2_count;
+	static long long queue3_size;
+	static long long queue3_count;
 };
 #endif

@@ -12,6 +12,8 @@ Service::Service()
 	_msg_queue = NULL;//all received msg
 	total_online = 0;
 	mobile_online = 0;
+	queue_size = 0;
+	queue_count = 0;
 }
 Service::~Service()
 {
@@ -45,6 +47,9 @@ int Service::Run()
 		{
 			tmLast1 = tmNow;
 			OneSecondCall();
+			
+			queue_size+=_msg_queue->Size();
+			queue_count++;
 		}	
 		usleep(1);
 	}
@@ -64,6 +69,13 @@ void Service::KillNode(int _fd)
 	msg->msgHead.cMsgType = THR_KILL_PLAYER_MSG;
 	msg->iFD = _fd;
 	ServiceManage::reply_client_queue->EnQueue(msg.PAK(),msg.LEN());
+}
+float Service::QueueStress()
+{
+	float res = (double)queue_size/queue_count;
+	queue_size = 0;
+	queue_count = 1;
+	return res;
 }
 
 

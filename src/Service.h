@@ -21,6 +21,7 @@ public:
 	inline int ServiceID(){return _service_id;}
 	inline int ServiceType(){return _service_type;}
 	inline char* ServiceName(){return _service_name;}
+	float QueueStress();
 	
 	void KillNode(int _fd);
 public:
@@ -32,6 +33,8 @@ private:
 	int _service_type;
 	char _service_name[32];
 	
+	long long queue_size;
+	long long queue_count;
 protected:
 	SimpleQueue* _msg_queue;//all received msg
 };
