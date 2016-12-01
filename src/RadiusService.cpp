@@ -34,25 +34,25 @@ int RadiusService::GetRadiusFD(RadiusType rt)
 	{
 		return it->second;
 	}
-	return -1;
+	return -2;
 }
 
 int RadiusService::AddRadius(Radius& radius)
 {
-	string* ip = &radius.sIP1;
+	char* ip = radius.cIP1;
 	int port = radius.iPort1;
 	
-	int fd = AddTCPClientNode(ip->c_str(),port);
+	int fd = AddTCPClientNode(ip,port);
 	if(fd == -1)
 	{
-		_log(_ERROR,"RadiusService","    =>Add Radius Error,ip1[%s][%d],Try 2[%s][%d]",ip->c_str(),port,radius.sIP2.c_str(),radius.iPort2);
-		ip = &radius.sIP2;
+		_log(_ERROR,"RadiusService","[%s] connect ip[%s:%d] failed!!! Now try 2[%s:%d]",radius.cName,ip,port,radius.cIP2,radius.iPort2);
+		ip = radius.cIP2;
 		port = radius.iPort2;
-		fd = AddTCPClientNode(ip->c_str(),port);
+		fd = AddTCPClientNode(ip,port);
 		
 		if(fd == -1)
 		{
-			_log(_ERROR,"RadiusService","    =>Add Radius Error,ip2[%s][%d],Exit!!! ",ip->c_str(),port);
+			_log(_ERROR,"RadiusService","[%s] connect ip[%s:%d] failed!!! Exit!!! ",radius.cName,ip,port);
 			exit(0);
 		}
 	}
@@ -62,8 +62,8 @@ int RadiusService::AddRadius(Radius& radius)
 	vec_all_radius.push_back(radius);
 	map_radius_fd[radius.eType] = fd;
 	
-	_log(_ERROR,"RadiusService","Add Radius Success!!! name[%s] fd[%d] ip1[%s][%d] ip2[%s][%d]",
-		 radius.sName.c_str(),fd,radius.sIP1.c_str(),radius.iPort1,radius.sIP2.c_str(),radius.iPort2);
+	_log(_ERROR,"RadiusService","[%s] connect success!!! fd[%d] ip1[%s:%d] ip2[%s:%d]",
+		radius.cName,fd,radius.cIP1,radius.iPort1,radius.cIP2,radius.iPort2);
 	ConnectSuccess(fd,radius.bAesEncrypt,true);
 	return fd;
 }
@@ -101,18 +101,32 @@ int RadiusService::Run()
 			if(msgHead->cMsgType == THR_ADD_RADIUS_MSG)	//增加radius
 			{
 				AddRadiusMsg* msg = (AddRadiusMsg*)msgHead;
-				Radius addInfo;
-				addInfo.bAesEncrypt = msg->iAesEncrypt;
-				addInfo.eType = (RadiusType)msg->iType;
-				addInfo.iPort1 = msg->iPort1;
-				addInfo.iPort2 = msg->iPort2;
-				addInfo.iReconnectCount = -1;
-				addInfo.iSocketFD = -1;
-				addInfo.sIP1 = string(msg->cIP1);
-				addInfo.sIP2 = string(msg->cIP2);
-				addInfo.sName = string(msg->cName);
-				AddRadius(addInfo);
-				ServiceManage::socket_msg_queue->EnQueue(pData,iLen);
+				if(msg->iUpdate == 1)//更新
+				{
+					for(size_t k=0;k<vec_all_radius.size();++k)
+					{
+						if(vec_all_radius[k].eType != msg->iType) continue;
+						strcpy(vec_all_radius[k].cIP2,msg->cIP2);
+						vec_all_radius[k].iPort2 = msg->iPort2;
+						SetKillFlag(vec_all_radius[k].iSocketFD,true);
+						_log(_ERROR,"RadiusService","Update radius[%d] ip[%s] port[%d]",msg->iType,msg->cIP2,msg->iPort2);
+						break;
+					}
+				}
+				else
+				{
+					Radius addInfo;
+					addInfo.bAesEncrypt = msg->iAesEncrypt;
+					addInfo.eType = (RadiusType)msg->iType;
+					addInfo.iPort1 = msg->iPort1;
+					addInfo.iPort2 = msg->iPort2;
+					addInfo.iReconnectCount = -1;
+					addInfo.iSocketFD = -1;
+					strcpy(addInfo.cIP1,msg->cIP1);
+					strcpy(addInfo.cIP2,msg->cIP2);
+					strcpy(addInfo.cName,msg->cName);
+					AddRadius(addInfo);
+				}
 			}
 			else
 			{
@@ -120,7 +134,7 @@ int RadiusService::Run()
 				{
 					if(vec_all_radius[k].iSocketFD != pHead->_socket_fd) continue;
 					
-					printf("<--- send to radius[%d] msgtype[%x] len[%d]\n",pHead->_socket_fd,msgHead->cMsgType,iLen);
+					//printf("<--- send to radius[%d] msgtype[%x] len[%d]\n",pHead->_socket_fd,msgHead->cMsgType,iLen);
 					msgHead->cVersion = MESSAGE_VERSION;
 					int phLen = sizeof(PackageHead);
 					int msgLen = iLen - phLen;
@@ -131,8 +145,8 @@ int RadiusService::Run()
 					SendRadiusData(pHead->_socket_fd,vec_all_radius[k].bAesEncrypt,pData+phLen-4,msgLen+4);
 					break;
 				}
-				FREE(pData);//who dequeue who free
 			}
+			FREE(pData);//who dequeue who free
 		}
 		if(tmNow - tmLast > 30)
 		{
@@ -147,23 +161,24 @@ void RadiusService::ReconnectRadius(int index)
 {
 //	printf("\n\n=== Reconnect Radius \n");
 	
-	string* ip = &(vec_all_radius[index].sIP1);
-	int port = vec_all_radius[index].iPort1;
+	char* ip = vec_all_radius[index].cIP2;
+	int port = vec_all_radius[index].iPort2;
+	char* name = vec_all_radius[index].cName;
 	
 	if(vec_all_radius[index].iReconnectCount % (2*RECONNECT_INTERVAL) == 0)
 	{
-		ip = &(vec_all_radius[index].sIP2);
-		port = vec_all_radius[index].iPort2;	
+		ip = vec_all_radius[index].cIP1;
+		port = vec_all_radius[index].iPort1;	
 	}
-	int fd = AddTCPClientNode(ip->c_str(),port);
+	int fd = AddTCPClientNode(ip,port);
 	
 	if(fd == -1)
 	{
-		_log(_ERROR,"RadiusService","Reconnect Radius Failed!!! ip=%s port=%d",ip->c_str(),port);
+		_log(_ERROR,"RadiusService","Reconnect[%s] Failed!!! ip=[%s:%d]",name,ip,port);
 	}
 	else
 	{
-		_log(_ERROR,"RadiusService","Reconnect Radius Success!!! ip=%s port=%d fd=%d",ip->c_str(),port,fd);
+		_log(_ERROR,"RadiusService","Reconnect[%s] Success!!! fd=%d ip=[%s:%d]",name,fd,ip,port);
 		vec_all_radius[index].iSocketFD = fd;
 		vec_all_radius[index].iReconnectCount = -1;
 		map_radius_fd[vec_all_radius[index].eType] = fd;
@@ -183,7 +198,7 @@ void RadiusService::ConnectSuccess(int fd,bool aes,bool newcon)
 	msg->msgHeadInfo.cMsgType = AUTHEN_REQ_RADIUS_MSG;
 	msg->msgHeadInfo.iMsgBodyLen = msgLen - sizeof(MsgHead);
 			
-	msg->iServerID = htonl(Config::Instance()->server_id);
+	msg->iServerID = htonl(Server::Inst()->server_id);
 	msg->iHideIndex = htonl(1);
 	strcpy(msg->szPasswd,"6831869");
 	if(newcon) msg->szPasswd[31] = 0;
@@ -252,7 +267,7 @@ void RadiusService::CallbackTCPReadData(int fd)
 		ph->_socket_fd = fd;
 		memcpy(pData+sizeof(PackageHead),cData,msg_len);
 		ServiceManage::socket_msg_queue->EnQueue(ph,ph->PackLen());
-		printf("  ---> radius read data [%x]\n",((MsgHead*)ph->Data())->cMsgType);
+		//printf("  ---> radius read data [%x]\n",((MsgHead*)ph->Data())->cMsgType);
 	}
 	else
 	{
@@ -270,7 +285,7 @@ void RadiusService::CallbackTCPReadData(int fd)
 		ph->_socket_fd = fd;
 		memcpy(pData+sizeof(PackageHead),msg_buffer,msg_len);
 		ServiceManage::socket_msg_queue->EnQueue(ph,ph->PackLen());
-		printf("  ---> radius read data [%x]\n",((MsgHead*)ph->Data())->cMsgType);
+		//printf("  ---> radius read data [%x]\n",((MsgHead*)ph->Data())->cMsgType);
 	}
 	ResetSocketNode(fd);
 }
@@ -301,7 +316,7 @@ void RadiusService::CallbackDelSocketNode(int fd)
 	{
 		if(vec_all_radius[i].iSocketFD == fd)
 		{
-			_log(_ERROR,"RadiusService","CallbackDelSocketNode Radius[%s] Disconnect fd[%d]",vec_all_radius[i].sName.c_str(),fd);
+			_log(_ERROR,"RadiusService","CallbackDelSocketNode Radius[%s] Disconnect fd[%d]",vec_all_radius[i].cName,fd);
 			vec_all_radius[i].iSocketFD = -1;
 			vec_all_radius[i].iReconnectCount = 1;
 			map_radius_fd[vec_all_radius[i].eType] = -1;

@@ -31,7 +31,7 @@ bool LuaConfig::LoadFile(const char* _cfile)
 			_log(_ERROR,"Lua Error","Start Lua State Error,file[%s]",_cfile);
 			return false;
 		}
-		//luaL_openlibs(_L);
+		luaL_openlibs(_L);
 	}
 	int error = luaL_dofile(_L,_cfile);
 	if (error)
@@ -106,6 +106,7 @@ LTable* LuaConfig::GetTable(const char* _key)
 		ParseTable(_L,_data_table);
 		return &_data_table;
 	}
+	_log(_ERROR,"LuaConfig","GetTable error!!! Problem getting table:%s",_key);
 	return NULL;
 }
 bool LuaConfig::GetBool(const char* _key, bool _default)
@@ -304,20 +305,22 @@ vector<bool> LTable::GetBools()
 #include <unistd.h>
 
 LuaLoader* LuaLoader::_instance = 0;
-LuaConfig* LuaLoader::LoadFile(const char* _file)
+LuaConfig* LuaLoader::LoadFile(const char* _file,bool& modified)
 {
 	if(!_instance)
 	{
 		_instance = new LuaLoader();
 	}	
+	modified = false;
 	struct stat buf;
 	int res = stat(_file,&buf);
 	if(res != 0)
 	{
-		_log(_ERROR,"LuaLoader","Problem getting file info.File=%s",_file);
+		_log(_ERROR,"LuaLoader","Problem getting file info. File=%s",_file);
 		return NULL;
 	}
 	long long filetime = (long long)buf.st_mtime+(long long)buf.st_ctime;
+	//printf("====[%lld]\n",filetime);
 	string str(_file);
 	unordered_map<string,Loader>::iterator it=_instance->_lua_loaders.find(str);
 	if(it!=_instance->_lua_loaders.end())
@@ -326,6 +329,7 @@ LuaConfig* LuaLoader::LoadFile(const char* _file)
 		{
 			it->second._success = it->second._lc.LoadFile(_file);
 			it->second._last_time = filetime;
+			modified = true;
 		}
 		if(it->second._success)
 		{
@@ -337,6 +341,7 @@ LuaConfig* LuaLoader::LoadFile(const char* _file)
 		Loader* ld = &(_instance->_lua_loaders[str]);
 		ld->_last_time = filetime;
 		ld->_success = ld->_lc.LoadFile(_file);
+		modified = true;
 		if(ld->_success)
 		{
 			return &(ld->_lc);

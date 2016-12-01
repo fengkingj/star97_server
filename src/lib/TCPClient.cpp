@@ -37,7 +37,7 @@ int TCPClient::AddTCPClientNode(const char* _ip, int _port)
 	}
 	else
 	{
-		_log(_ERROR,"TCPClient","AddTCPClientNode Add Node Error ip=%s port=%d",_ip,_port);
+		//_log(_ERROR,"TCPClient","AddTCPClientNode Add Node Error ip=%s port=%d",_ip,_port);
 		return -1;
 	}
 }

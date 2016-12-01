@@ -11,12 +11,12 @@
 
 inline void* MALLOC(size_t _len)
 {
-	Monitor::_malloc_cnt++;
+	Monitor::malloc_cnt++;
 	return malloc(_len);
 }
 inline void FREE(void* _data)
 {
-	Monitor::_free_cnt++;
+	Monitor::free_cnt++;
 	return free(_data);
 }
 
@@ -61,10 +61,10 @@ Package<T>::Package(int _fd,int _sid)
 }
 
 template<class T,class M>
-class PackageVec
+class PackageAssembly
 {
 public:
-	PackageVec(int _num,int _fd,int _sid=-1);
+	PackageAssembly(int _num,int _fd,int _sid=-1);
 	T* operator->() {return _msg;}
 	M* operator[](const int& k){return _cmsg+k;}
 	inline T* MSG(){return _msg;}
@@ -77,12 +77,13 @@ private:
 	M* _cmsg;
 };
 template<class T,class M>
-PackageVec<T,M>::PackageVec(int _num,int _fd,int _sid)
+PackageAssembly<T,M>::PackageAssembly(int _num,int _fd,int _sid)
 {
 	_pak_len = sizeof(PackageHead)+sizeof(T)+sizeof(M)*_num;
 	_ph = MALLOC(_pak_len);
+	memset(_ph,0,sizeof(_pak_len));
 	PackageHead* packagehead = (PackageHead*)_ph;
-	packagehead->_data_len = sizeof(T);
+	packagehead->_data_len = sizeof(T)+sizeof(M)*_num;
 	packagehead->_socket_fd = _fd;
 	packagehead->_table_id = _sid;
 	_msg = (T*)((char*)_ph+sizeof(PackageHead));

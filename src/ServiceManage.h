@@ -11,8 +11,7 @@
 
 enum SerType
 {
-	ST_CHAT = 1,	//聊天服务
-	ST_GAME = 2,	//游戏服务
+	ST_GAME = 1,	//游戏服务
 };
 
 class Service;
@@ -26,7 +25,8 @@ public:
 	static Service* GetService(int _id);
 	static std::vector<Service*> GetService(SerType _st);
 	static Service* SocketJoinService(SocketNode* _node);
-	static void GetOnlineNum(OnlineCount* _online_info);
+	static void GetOnlineNum(int& _total,int& _mobile);
+	static int GetOnlineNum();
 public:
 	static SimpleQueue* socket_msg_queue;
 	static SimpleQueue* reply_client_queue;

@@ -5,8 +5,109 @@
 #include <vector>
 #include "proto_body.h"
 
-struct ServerRoomInfo
+#define ALL_GRID_NUM 9
+#define ALL_PIC_NUM 9
+#define QUANPAN_TYPE_NUM 11
+enum GridPic
 {
+	PIC_Seven		= 1,
+	PIC_Blue_Bar	= 2,
+	PIC_Red_Bar		= 3,
+	PIC_Green_Bar	= 4,
+	PIC_Bell		= 5,
+	PIC_Watermelon	= 6,
+	PIC_Grape		= 7,
+	PIC_Orange		= 8,
+	PIC_Cherry		= 9,
+};
+struct LineDef
+{	
+	int first;
+	int second;
+	int third;
+};
+struct LineBet
+{
+	int first;
+	int second;
+	int third;
+	int bet;
+};
+
+class Config
+{
+public:
+	static Config* Instance();
+	void LoadConfig();
+private:
+	GridPic grid_pic_def[ALL_PIC_NUM];
+	int grid_rate[ALL_GRID_NUM][ALL_PIC_NUM];
+	int num_seven_bet[ALL_GRID_NUM];
+	int quanpan_rate[QUANPAN_TYPE_NUM];
+	int quanpan_bet[QUANPAN_TYPE_NUM];
+	std::vector<LineDef> all_lines;
+	std::vector<LineBet> line_bets;
+private:
+  Config();
+  static Config* _instance;
+};
+
+struct RadiusConf
+{
+	std::string ip1;
+	int port1;
+	std::string ip2;
+	int port2;
+};
+class Server
+{
+public:
+	static Server* Inst();
+	static Server* _instance;
+	void InitServer(ServerInfo* _server);
+private:
+	Server();
+public:
+	int game_id;
+	int server_id;
+	int server_port;
+	int heart_time;
+	int server_type;
+	int work_thread_num;
+	
+	std::string log_lev;
+	std::string log_file_path;
+	std::string server_name;
+	std::string main_config_file;
+	std::string config_data_path;
+	std::string game_name;
+	
+	RadiusConf room_server;
+	RadiusConf account_server;
+	RadiusConf log_server;
+
+	int	center_server_id;				//连接的中心服务器的ID
+	std::string center_server_ip;			//中心服务器IP 2016-5-23从int改为char
+	int center_server_port;
+	std::string center_server_ip_bak;		//中心服务器bak 2016-5-23从int改为char
+	int center_server_port_bak;
+	std::string ip1;			//电信 2016-5-23从int改为char
+	int port1;
+	std::string ip2;			//网通 2016-5-23从int改为char
+	int port2;
+};
+class Room
+{
+public:
+	static Room* Inst();
+	static Room* _instance;
+	void InitRoom(GameRoomInfoResRadius* pRoom);
+	int CloseLeftSec();//-1 24小时房间 0已经关闭 
+	bool CheckVipType(int _vip);
+private:
+	Room();
+public:
+	std::string room_name;
 	int  iIPLimit;//是否有IP限制
 	int	 iMoneyLimitation;//进入的金钱限制
 	int  iMinTime;//最小倍数
@@ -117,49 +218,12 @@ struct ServerRoomInfo
 	int channel; //渠道 add by alexhy 2016-3-5	
 	char hallUrl[255];  //大厅url add by alexhy 2016-5-4
 };
-
-struct RadiusConf
-{
-	std::string ip1;
-	int port1;
-	std::string ip2;
-	int port2;
-};
-
-class Config
+class Timer
 {
 public:
-  static Config* Instance();
-  void LoadConfig();
-public:
-	int game_id;
-	int server_id;
-	int server_port;
-	int heart_time;
-	int server_type;
-	int work_thread_num;
-	
-	std::string log_lev;
-	std::string log_file_path;
-	std::string server_name;
-	std::string room_name;
-	std::string main_config_file;
-	std::string config_data_path;
-	std::string game_name;
-	
-	RadiusConf room_server;
-	RadiusConf account_server;
-	RadiusConf log_server;
-public:
-	ServerRoomInfo ROOM;
-	ServerInfo SERVER;
-	void SetRoomInfo(GameRoomInfoResRadius* pRoom);
-	bool CheckVipType(int viptype);
-private:
-  Config();
-  static Config* _instance;
+	static void Update();
+	static time_t tmNow;
+	static struct tm* localTM;
 };
-
-void parse_string_vector(std::vector<int>& vec, char *from ,const char *div);
 
 #endif

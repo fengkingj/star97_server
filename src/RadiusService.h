@@ -22,10 +22,10 @@ enum RadiusType
 struct Radius
 {
 	RadiusType eType;
-	std::string sName;
-	std::string sIP1;
+	char cName[32];
+	char cIP1[20];
 	int iPort1;
-	std::string sIP2;
+	char cIP2[20];
 	int iPort2;
 	int iSocketFD;
 	int iReconnectCount;

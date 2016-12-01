@@ -39,17 +39,21 @@ void GateServer::Init(const char* _name,ClientConnection* _connection)
 	strcpy(_thread_name,_name);
 	_client_connection = _connection;
 	
-	InitCall(_client_connection->GetMsgQueue());
+	InitCall(_client_connection->GetMsgQueue(),1);
 	
+	//线程单通讯
 	RegCall(THR_SOCKET_CONNECT,EVENT_FUNCTION(GateServer::Thr_SocketConnect,this));
 	RegCall(THR_SOCKET_DISCONNECT,EVENT_FUNCTION(GateServer::Thr_SocketDisconnect,this));
 	RegCall(THR_ADD_RADIUS_MSG,EVENT_FUNCTION(GateServer::Thr_AddRadiusSuccess,this));
 	
+	//Radius通讯
 	RegCall(GAME_ROOM_INFO_RES_RADIUS_MSG,EVENT_FUNCTION(GateServer::Rad_RoomInfoRes,this));
 	RegCall(GET_SERVER_INFO_MSG,EVENT_FUNCTION(GateServer::Rad_ServerInfoRes,this));
 	RegCall(UPDATE_CENTER_SERVER_INFO_MSG,EVENT_FUNCTION(GateServer::Rad_UpdateCenterServerInfo,this));
 	RegCall(USERINFO_RES_RADIUS_MSG,EVENT_FUNCTION(GateServer::Rad_UserInfoRes,this));
+	RegCall(GET_CENTER_SERVER_MSG,EVENT_FUNCTION(GateServer::Rad_GetCenterServerMsg,this));
 	
+	//客户端发过来的请求
 	RegCall(AUTHEN_REQ_MSG,EVENT_FUNCTION(GateServer::Cli_UserAuthenReq,this));
 }
 
@@ -59,31 +63,36 @@ int GateServer::Run()
 	time_t tmLast2 = tmLast;
 	time_t tmLast3 = tmLast;
 	time_t tmLast4 = tmLast;
-	time_t tmNow;
+	time_t tmLast5 = tmLast;
 	while(1)
 	{
 		Dispatch();
 		
-		time(&tmNow);
-		if(tmNow - tmLast > 60)
+		Timer::Update();
+		if(Timer::tmNow - tmLast > 30)
 		{
-			tmLast = tmNow;
+			tmLast = Timer::tmNow;
 			Config::Instance()->LoadConfig();
 		}
-		if(tmNow - tmLast2 > MONITOR_LOG_TIME)
+		if(Timer::tmNow - tmLast2 > MONITOR_LOG_TIME)
 		{
-			tmLast2 = tmNow;
+			tmLast2 = Timer::tmNow;
 			Monitor::MonitorLog();
 		}
-		if(tmNow - tmLast3 > 300)//五分钟拿次房间信息
+		if(Timer::tmNow - tmLast3 > 300)//五分钟拿次房间信息
 		{
-			tmLast3 = tmNow;
+			tmLast3 = Timer::tmNow;
 			UpdateServerRoomInfo();
 		}
-		if(tmNow > tmLast4)//实时人数变化
+		if(Timer::tmNow > tmLast4)//实时人数变化
 		{
-			tmLast4 = tmNow;
+			tmLast4 = Timer::tmNow;
 			UpdateCServerPlayerNum();
+		}
+		if(Timer::tmNow - tmLast5 > 60)//重新拿中心服务器ip
+		{
+			tmLast5 = Timer::tmNow;
+			QueryCenterServerFromRoomServer();
 		}
 		
 		usleep(1);
@@ -93,7 +102,7 @@ int GateServer::Run()
 }
 void GateServer::UpdateServerRoomInfo(bool bFirst)
 {
-	_log(_DEBUG,"GateServer","UpdateServerRoomInfo game_id=%d server_id=%d",Config::Instance()->game_id,Config::Instance()->server_id);
+	_log(_DEBUG,"GateServer","UpdateServerRoomInfo game_id=%d server_id=%d",Server::Inst()->game_id,Server::Inst()->server_id);
 	int roomfd = RadiusService::GetRadiusFD(RAD_ROOM);
 	if(roomfd < 0)
 	{
@@ -105,7 +114,7 @@ void GateServer::UpdateServerRoomInfo(bool bFirst)
 		Package<GameRoomInfoReqRadius> msgreq(roomfd);
 		msgreq->msgHeadInfo.cMsgType = GAME_ROOM_INFO_REQ_RADIUS_MSG;
 		msgreq->cIfNeedRoomInfo = 2;
-		msgreq->iRoomOnlineNum[0] = Config::Instance()->ROOM.iAppMTime;
+		msgreq->iRoomOnlineNum[0] = Room::Inst()->iAppMTime;
 		ServiceManage::request_radius_queue->EnQueue(msgreq.PAK(),msgreq.LEN());
 	}
 	
@@ -122,13 +131,13 @@ void GateServer::UpdateServerRoomInfo(bool bFirst)
 		Package<GameRoomInfoReqRadius> msgreq2(roomfd);
 		msgreq2->msgHeadInfo.cMsgType = GAME_ROOM_INFO_REQ_RADIUS_MSG;
 		msgreq2->cRoomNum = MAX_ROOM_NUM;
-		OnlineCount oc;
-		ServiceManage::GetOnlineNum(&oc);
-		if(Config::Instance()->ROOM.iIfRoomChecked > 0)//没有开启的房间就发负数
+		int total,mobile;
+		ServiceManage::GetOnlineNum(total,mobile);
+		if(Room::Inst()->iIfRoomChecked > 0)//没有开启的房间就发负数
 		{
-			msgreq2->iRoomOnlineNum[0] = htonl(oc.total_online);
-			msgreq2->iRoomOnlineNumReal[0] = htonl(oc.real_online);
-			msgreq2->iRoomOnlineNumMob[0] = htonl(oc.mobile_online);					
+			msgreq2->iRoomOnlineNum[0] = htonl(total);
+			msgreq2->iRoomOnlineNumReal[0] = htonl(total-mobile);
+			msgreq2->iRoomOnlineNumMob[0] = htonl(mobile);					
 		}
 		else
 		{
@@ -142,8 +151,9 @@ void GateServer::UpdateServerRoomInfo(bool bFirst)
 //发送服务器IP消息到中心服务器
 void GateServer::SendServerInfoToCServer()
 {  	
-	ServerRoomInfo* pRoom = &(Config::Instance()->ROOM);
-	ServerInfo* pServer = &(Config::Instance()->SERVER);
+	Room* pRoom = Room::Inst();
+	Server* pServer = Server::Inst();
+
 	if(pRoom->iIfConnectCenterServer != 1)//是否连接中心服务器
 	{
 		return;
@@ -154,23 +164,30 @@ void GateServer::SendServerInfoToCServer()
 		_log(_ERROR,"GateServer","Center Server Error!!! fd=%d",centerfd);
 		return;
 	}
-	_log(_ERROR,"GateServer","SendServerInfoToCServer ip1[%s][%u] ip2[%s][%u]",pServer->iIP1,pServer->sPort1,pServer->iIP2,pServer->sPort2);
+	_log(_ERROR,"GateServer","SendServerInfoToCServer ip1[%s][%u] ip2[%s][%u]",pServer->ip1.c_str(),pServer->port1,pServer->ip2.c_str(),pServer->port2);
 	Package<ServerDetailInfo> msg(centerfd);
 	msg->msgHeadInfo.cMsgType = SEND_INFO_CENTER_SERVER_MSG;
 	
-	strcpy(msg->iIP1,pServer->iIP1);
-	msg->sPort1 = pServer->sPort1;
-	strcpy(msg->iIP2,pServer->iIP2);
-	msg->sPort2 = pServer->sPort2;
+	strcpy(msg->iIP1,pServer->ip1.c_str());
+	msg->sPort1 = pServer->port1;
+	strcpy(msg->iIP2,pServer->ip2.c_str());
+	msg->sPort2 = pServer->port2;
 	msg->iBeginTime = pRoom->iBeginTime;
 	msg->iOpenTime = pRoom->iLongTime;
 	msg->iMaxNum = pRoom->iMaxRoomPlayer;
 	msg->iChecked = pRoom->iIfRoomChecked;
-	OnlineCount oc;
-	ServiceManage::GetOnlineNum(&oc);
-	msg->iCurrentNum = oc.total_online;
-	//msg->iQuickMatchEpollUseNum = m_iQuickMatchEpollUseNum;	
+	msg->iCurrentNum = ServiceManage::GetOnlineNum();
 	ServiceManage::request_radius_queue->EnQueue(msg.PAK(),msg.LEN());
+}
+void GateServer::ReturnSocketNode(SocketNode* _node)
+{
+	_nodeManage.ReturnNode(_node->m_iSocketFD);
+	if(_node->m_iUserID > 0)
+	{
+		unordered_map<int,SocketNode*>::iterator it = _nodeManage_uid.find(_node->m_iUserID);
+		if(it != _nodeManage_uid.end())
+			_nodeManage_uid.erase(it);
+	}
 }
 
 int GateServer::CallBackUnknownPackage(PackageHead* _package,EventCall* _event)
@@ -208,30 +225,18 @@ int GateServer::Thr_SocketConnect(PackageHead* _package, EventCall* _room)
 			sdm->iUserID = node->m_iUserID;
 			pRoom->QueuePackage(sdm.PAK(),sdm.LEN());
 		}
-		_nodeManage.ReturnNode(node->m_iSocketFD);
-		if(node->m_iUserID > 0)
-		{
-			unordered_map<int,SocketNode*>::iterator it = _nodeManage_uid.find(node->m_iUserID);
-			if(it != _nodeManage_uid.end())
-				_nodeManage_uid.erase(it);
-		}
-		Monitor::_snode_return_cnt++;
+		ReturnSocketNode(node);
 	}
-	SocketNode *pNode = _nodeManage.GetFreeNode();
-	Monitor::_snode_get_cnt++;
-	Monitor::_snode_num = _nodeManage.FreeSize()+_nodeManage.NodeSize();
-	
+	SocketNode *pNode = _nodeManage.GetFreeNode();	
 	pNode->m_iSocketFD = conmsg->iSocketFD;
 	strcpy(pNode->m_szIP,conmsg->szIP);
 	_nodeManage.RegNode(pNode->m_iSocketFD,pNode);
+	Monitor::node_num = _nodeManage.NodeSize()+_nodeManage.FreeSize();
 	
 	_log(_ERROR,"GateServer","Socket Connectted! fd[%d] ip[%s]",pNode->m_iSocketFD,pNode->m_szIP);
 	
-	Monitor::_connect_cnt++;
-	if(pNode->m_iSocketFD > Monitor::_max_fd)
-	{
-		Monitor::_max_fd = pNode->m_iSocketFD;
-	}
+	Monitor::connect_cnt++;
+	Monitor::max_fd = max(pNode->m_iSocketFD,Monitor::max_fd);
 	return 0;
 }
 int GateServer::Thr_SocketDisconnect(PackageHead* _package, EventCall* _room)
@@ -254,17 +259,10 @@ int GateServer::Thr_SocketDisconnect(PackageHead* _package, EventCall* _room)
 	}
 
 	_log(_ERROR,"GateServer","Thr_SocketDisconnect fd[%d] ip[%s] userid[%d] table[%d]",node->m_iSocketFD,node->m_szIP,node->m_iUserID,node->m_iServiceID);
-
-	_nodeManage.ReturnNode(node->m_iSocketFD);
-	if(node->m_iUserID > 0)
-	{
-		unordered_map<int,SocketNode*>::iterator it = _nodeManage_uid.find(node->m_iUserID);
-		if(it != _nodeManage_uid.end())
-			_nodeManage_uid.erase(it);
-	}
-	Monitor::_snode_return_cnt++;
-	Monitor::_snode_num = _nodeManage.FreeSize()+_nodeManage.NodeSize();
-	Monitor::_disconnect_cnt++;
+	ReturnSocketNode(node);
+	
+	Monitor::node_num = _nodeManage.FreeSize()+_nodeManage.NodeSize();
+	Monitor::disconnect_cnt++;
 	if(notfree)
 	{
 		return DONOT_FREE;//goto child thread so cannot free
@@ -284,20 +282,32 @@ int GateServer::Thr_AddRadiusSuccess(PackageHead* _package,EventCall* _room)
 int GateServer::Rad_RoomInfoRes(PackageHead* _package, EventCall* _room)
 {
 	GameRoomInfoResRadius* msg = (GameRoomInfoResRadius*)_package->Data();
-	Config::Instance()->SetRoomInfo(msg);
+	Room::Inst()->InitRoom(msg);
+	if(Room::Inst()->iIfRoomChecked == 3)//房间禁用,立马给所有人发个通知
+	{
+		vector<Service*> services = ServiceManage::GetService(ST_GAME);
+		for(size_t i=0;i<services.size();++i)
+		{
+			Package<KickOutServer> kickmsg(-1,services[i]->ServiceID());
+			kickmsg->cType = 31;
+			ServiceManage::socket_msg_queue->EnQueue(kickmsg.PAK(),kickmsg.LEN());
+		}
+		_log(_ERROR,"GateServer","Rad_RoomInfoRes server closed[%d]",Room::Inst()->iIfRoomChecked);
+	}
 	return 0;
 }
 int GateServer::Rad_ServerInfoRes(PackageHead* _package, EventCall* _room)
 {
 	ServerInfo *msg = (ServerInfo*)_package->Data();
-	Config::Instance()->SERVER = *msg;
+	Server::Inst()->InitServer(msg);
 	
 	_log(_ERROR,"GateServer","Rad_ServerInfoRes center server id[%d] ip1[%s][%d] ip2[%s][%d]",msg->iCenterServerID,msg->iCenterServerIP,msg->sCenterServerPort,
 	  msg->iCenterServerIPBak,msg->sCenterServerPortBak);
 
-	if(Config::Instance()->server_id != 0 && 
-	  msg->iCenterServerID != Config::Instance()->server_id && 
-	  RadiusService::GetRadiusFD(RadiusType::RAD_CENTER) == -1)
+	if(Server::Inst()->server_id != 0 && 
+	  msg->iCenterServerID != Server::Inst()->server_id && 
+	  RadiusService::GetRadiusFD(RadiusType::RAD_CENTER) == -2 && 
+	  Room::Inst()->iIfConnectCenterServer == 0)
 	{
 		Package<AddRadiusMsg> rad(1);
 		rad->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
@@ -310,7 +320,7 @@ int GateServer::Rad_ServerInfoRes(PackageHead* _package, EventCall* _room)
 		rad->iAesEncrypt = 1;
 		ServiceManage::request_radius_queue->EnQueue(rad.PAK(),rad.LEN());
 		
-		Config::Instance()->ROOM.iIfConnectCenterServer = 1;
+		Room::Inst()->iIfConnectCenterServer = 1;
 	}
 	else if(msg->iCenterServerID == 0)
 	{
@@ -334,46 +344,18 @@ int GateServer::Cli_UserAuthenReq(PackageHead* _package, EventCall* _room)
 		_log(_ERROR,"GateServer","Cli_UserAuthenReq Repeate Authen Error! fd[%d] regid[%d] userid[%d] table[%d]",_package->_socket_fd,authen->iUserID,node->m_iUserID,node->m_iServiceID);
 		return 0;
 	}
-	ServerRoomInfo* pRoom = &(Config::Instance()->ROOM);
-	OnlineCount oc;
-	ServiceManage::GetOnlineNum(&oc);
-	if(oc.total_online >= pRoom->iMaxRoomPlayer)
+	Room* pRoom = Room::Inst();
+	int online = ServiceManage::GetOnlineNum();
+	if(online >= pRoom->iMaxRoomPlayer)
 	{
-		_log(_DEBUG,"GateServer","Cli_UserAuthenReq online_num[%d] room_max[%d]",oc.total_online,pRoom->iMaxRoomPlayer);
+		_log(_ERROR,"GateServer","Cli_UserAuthenReq online_num[%d] room_max[%d]",online,pRoom->iMaxRoomPlayer);
 		SendAuthenRes(_package->_socket_fd,1);
 		return 0;
 	}
-	//判断房间是否开放
-	time_t now_time;
-	struct tm  *tm_t;
-	time(&now_time);
-	tm_t = localtime(& now_time);
-	bool bifLimit = false;
-	if(pRoom->iLongTime == 24)//全天开放
+	int closeleft = pRoom->CloseLeftSec();
+	if(closeleft<60 || pRoom->iIfRoomChecked!=1)//提前1分钟不让进场
 	{
-		 bifLimit = false;
-	}
-	else if((pRoom->iBeginTime+pRoom->iLongTime)>=24)
-	{
-		if((tm_t->tm_hour<pRoom->iBeginTime)&&(tm_t->tm_hour>=(pRoom->iBeginTime+pRoom->iLongTime)%24))
-		{
-			bifLimit = true;
-		}
-	}
-	else
-	{
-		if((tm_t->tm_hour<pRoom->iBeginTime)||(tm_t->tm_hour>=(pRoom->iBeginTime+pRoom->iLongTime)))
-		{
-			bifLimit = true;
-		}
-	}
-	if(pRoom->iIfRoomChecked != 1)
-	{
-		bifLimit = true;
-	}
-	if( bifLimit)
-	{
-		_log(_ERROR,"GateServer","Cli_UserAuthenReq room not open room_checked[%d] begin_time[%d] last_time[%d]",pRoom->iIfRoomChecked,pRoom->iBeginTime,pRoom->iLongTime);
+		_log(_ERROR,"GateServer","Cli_UserAuthenReq room close begin[%d]long[%d] left[%d]",pRoom->iBeginTime,pRoom->iLongTime,closeleft);
 		SendAuthenRes(_package->_socket_fd,9);
 		return 0;
 	}
@@ -389,18 +371,19 @@ int GateServer::Cli_UserAuthenReq(PackageHead* _package, EventCall* _room)
 	msgreq->iUserID = htonl(authen->iUserID);             //UserID
 	strcpy(msgreq->szUserToken,authen->szUserToken);		//附带Token认证
 	msgreq->cRoomID = authen->cRoomNum;//房间号
-	msgreq->iGameID	= htonl(Config::Instance()->game_id);//游戏ID
-	strcpy(msgreq->szGameName,Config::Instance()->game_name.c_str());//游戏名称
+	msgreq->iGameID	= htonl(Server::Inst()->game_id);//游戏ID
+	strcpy(msgreq->szGameName,Server::Inst()->game_name.c_str());//游戏名称
 	//strcpy(node->m_szIP,authen->szIP);  //保存IP地址
 	//strcpy(nodePlayers->szUserToken,msgReq->szUserToken);
-	msgreq->iCenterServerID = htonl(Config::Instance()->SERVER.iCenterServerID);
+	msgreq->iCenterServerID = htonl(Server::Inst()->center_server_id);
 	ServiceManage::request_radius_queue->EnQueue(msgreq.PAK(),msgreq.LEN());//发送用户信息请求
-	_log(_DEBUG,"","");
+	_log(_DEBUG,"GateServer","UserAuthenReq user[%d] fd[%d] token[%s]",authen->iUserID,_package->_socket_fd,authen->szUserToken);
 	return 0;
 }
 void GateServer::SendAuthenRes(int _fd,char _result)
 {
 	Package<AuthenRes> aures(_fd);
+	aures->msgHead.cMsgType = AUTHEN_RES_MSG;
 	aures->cResult = _result;
 	ServiceManage::reply_client_queue->EnQueue(aures.PAK(),aures.LEN());
 }
@@ -422,11 +405,11 @@ int GateServer::Rad_UserInfoRes(PackageHead* _package, EventCall* _room)
 	if(msgres->cResult == 1 || msgres->cResult == 33 || msgres->cResult == 34)
 	{
 		int iRes = 0;
-		if(ntohl(msgres->iMoney) < (uint32_t)Config::Instance()->ROOM.iMoneyLimitation)
+		if(ntohl(msgres->iMoney) < (uint32_t)Room::Inst()->iMoneyLimitation)
 		{
 			iRes = 5;
 		}
-		else if(Config::Instance()->CheckVipType(msgres->cVipType) == false)
+		else if(Room::Inst()->CheckVipType(msgres->cVipType) == false)
 		{
 			iRes = 7; //进入房间类型和用户的类型不一致
 		}
@@ -448,6 +431,7 @@ int GateServer::Rad_UserInfoRes(PackageHead* _package, EventCall* _room)
 	else
 	{
 		Package<AuthenRes> aures(node->m_iSocketFD);
+		aures->msgHead.cMsgType = AUTHEN_RES_MSG;
 		if(msgres->cResult == 23)
 		{
 			aures->cResult = 10;
@@ -464,17 +448,16 @@ int GateServer::Rad_UserInfoRes(PackageHead* _package, EventCall* _room)
 }
 void GateServer::UpdateCServerPlayerNum()
 {
-	if(Config::Instance()->ROOM.iIfConnectCenterServer == 1)//是否连接中心服务器
+	if(Room::Inst()->iIfConnectCenterServer == 1)//是否连接中心服务器
 	{
 		static int lastonline = 0;
-		OnlineCount oc;
-		ServiceManage::GetOnlineNum(&oc);
-		if(oc.total_online == lastonline)
+		int nowonline = ServiceManage::GetOnlineNum();
+		if(nowonline == lastonline)
 		{
 			return;
 		}
-		int num = oc.total_online - lastonline;
-		lastonline = oc.total_online;
+		int num = nowonline - lastonline;
+		lastonline = nowonline;
 			
 		Package<UpdatePlayerNumReq> msg(RadiusService::GetRadiusFD(RAD_CENTER));
 		msg->msgHeadInfo.cMsgType = UPDATA_CENTER_SERVER_PNUM_MSG;
@@ -483,6 +466,34 @@ void GateServer::UpdateCServerPlayerNum()
 		_log(_DEBUG,"GateServer","UpdateCServerPlayerNum num[%d] total[%d]",num,lastonline);
 		ServiceManage::request_radius_queue->EnQueue(msg.PAK(),msg.LEN());
 	}
+}
+void GateServer::QueryCenterServerFromRoomServer()
+{
+	//printf("QueryCenterServerFromRoomServer[%d]\n",Config::Instance()->server_id);
+	Package<QueryCenterServerMsg> qc(RadiusService::GetRadiusFD(RAD_ROOM));
+	qc->msgHeadInfo.cMsgType = GET_CENTER_SERVER_MSG;
+	qc->serverId = Server::Inst()->server_id;
+	ServiceManage::request_radius_queue->EnQueue(qc.PAK(),qc.LEN());
+}
+int GateServer::Rad_GetCenterServerMsg(PackageHead* _package, EventCall* _room)
+{
+	CenterServerInfo* m = (CenterServerInfo*)_package->Data();
+	_log(_DEBUG,"GateServer","Rad_GetCenterServerMsg id[%d] ip[%s] port[%d]",m->iCenterServerID,m->iCenterServerIP,m->sCenterServerPort);
+	if(Server::Inst()->center_server_ip_bak != m->iCenterServerIP||Server::Inst()->center_server_port_bak!=m->sCenterServerPort)
+	{
+		//_log(_ERROR,"GL","Change Center Server To %s:%d",m->iCenterServerIP,m->sCenterServerPort);
+		Server::Inst()->center_server_ip_bak = m->iCenterServerIP;
+		Server::Inst()->center_server_port_bak = m->sCenterServerPort;
+		
+		Package<AddRadiusMsg> arm(0);
+		arm->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
+		strcpy(arm->cIP2,m->iCenterServerIP);
+		arm->iPort2 = m->sCenterServerPort;
+		arm->iType = RAD_CENTER;
+		arm->iUpdate = 1;
+		ServiceManage::request_radius_queue->EnQueue(arm.PAK(),arm.LEN());
+	}
+	return 0;
 }
 
 

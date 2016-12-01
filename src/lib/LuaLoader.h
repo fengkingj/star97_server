@@ -86,7 +86,7 @@ private:
 	long long _last_time;
   };
 public:
-  static LuaConfig* LoadFile(const char* _file);
+  static LuaConfig* LoadFile(const char* _file,bool& modified);
 private:
   LuaLoader(){};
   static LuaLoader* _instance;

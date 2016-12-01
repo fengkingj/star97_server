@@ -2,6 +2,7 @@
 #include <iconv.h>
 #include <string.h>
 
+using namespace std;
 int code_convert(const char *from_charset,const char *to_charset,char *inbuf,size_t inlen,char *outbuf,size_t outlen)
 {
 	iconv_t cd;
@@ -18,4 +19,16 @@ int code_convert(const char *from_charset,const char *to_charset,char *inbuf,siz
 	}
 	iconv_close(cd);
 	return 0;
+}
+void parse_string_vector(vector<int>& vec, char *from ,const char *div)
+{
+	char *p=NULL;
+	while((p=strsep(&from,div)))
+	{			
+		int value = atoi(p);
+		if(value != 0)
+		{
+			vec.push_back(atoi(p));
+		}
+	}	
 }

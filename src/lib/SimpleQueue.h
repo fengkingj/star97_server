@@ -21,6 +21,7 @@ public:
   virtual ~SimpleQueue();
   void EnQueue(void* _data,int _len);
   void* DeQueue(int& _len,int _time=-1);
+  inline int Size(){return _size;}
 private:
   char _queue_name[32];
   int _warning_count;

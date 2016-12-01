@@ -4,13 +4,6 @@
 #include "thread.h"
 #include "EventCall.h"
 
-struct OnlineCount
-{
-	int total_online;
-	int real_online;
-	int mobile_online;
-};
-
 class SimpleQueue;
 class Service:public Thread,public EventCall
 {
@@ -22,15 +15,17 @@ public:
 	virtual void OneSecondCall(){}
 	
 	void QueuePackage(void* _package, int _len);
+	int QueueSize();
+	virtual int NodeNum(){return 0;}
 	
 	inline int ServiceID(){return _service_id;}
 	inline int ServiceType(){return _service_type;}
 	inline char* ServiceName(){return _service_name;}
-	inline SimpleQueue* ServiceQueue(){return _msg_queue;}
-	
-	virtual OnlineCount OnlineNum(){return _online_count;}
 	
 	void KillNode(int _fd);
+public:
+	int total_online;
+	int mobile_online;
 private:
 	int	Run();
 	int _service_id;
@@ -39,7 +34,6 @@ private:
 	
 protected:
 	SimpleQueue* _msg_queue;//all received msg
-	OnlineCount _online_count;
 };
 
 

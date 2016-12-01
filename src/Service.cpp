@@ -10,7 +10,8 @@
 Service::Service()
 {
 	_msg_queue = NULL;//all received msg
-	memset(&_online_count,0,sizeof(OnlineCount));
+	total_online = 0;
+	mobile_online = 0;
 }
 Service::~Service()
 {
@@ -52,6 +53,10 @@ int Service::Run()
 void Service::QueuePackage(void* _package, int _len)
 {
 	_msg_queue->EnQueue(_package,_len);
+}
+int Service::QueueSize()
+{
+	return _msg_queue->Size();
 }
 void Service::KillNode(int _fd)
 {

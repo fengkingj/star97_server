@@ -18,6 +18,7 @@
 #define		AUTHEN_REQ_MSG					0xE1//玩家登陆验证请求
 #define		AUTHEN_RES_MSG					0xE8//登陆验证响应
 #define	  	UPDATE_CENTER_SERVER_INFO_MSG 	0xFD//更新中心服务器信息
+#define		GET_CENTER_SERVER_MSG			0x10//定时向common_room获取中心服IP
 #define		AUTHEN_REQ_RADIUS_MSG 			0x51//服务器登陆Radius请求
 #define		USERINFO_REQ_RADIUS_MSG 		0x52//向Radius发送新登陆用户信息请求
 #define		GAME_ROOM_INFO_REQ_RADIUS_MSG 	0x54//游戏服务器请求房间信息，结构体中附带房间人数

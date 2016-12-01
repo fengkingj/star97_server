@@ -43,6 +43,8 @@ private:
 	void SendServerInfoToCServer();
 	void SendAuthenRes(int _fd,char _result);
 	void UpdateCServerPlayerNum();
+	void QueryCenterServerFromRoomServer();
+	void ReturnSocketNode(SocketNode* _node);
 private:
 	int CallBackUnknownPackage(PackageHead* _package,EventCall* _event);
 	
@@ -54,6 +56,7 @@ private:
 	int Rad_ServerInfoRes(PackageHead* _package,EventCall* _room);
 	int Rad_UpdateCenterServerInfo(PackageHead* _package,EventCall* _room);
 	int Rad_UserInfoRes(PackageHead* _package,EventCall* _room);
+	int Rad_GetCenterServerMsg(PackageHead* _package,EventCall* _room);
 		
 	int Cli_UserAuthenReq(PackageHead* _package,EventCall* _room);
 private:

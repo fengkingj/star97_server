@@ -36,6 +36,7 @@ struct AddRadiusMsg//#define THR_ADD_RADIUS_MSG 0x04	//添加radius连接
 	char cIP2[20];
 	int iPort2;
 	int iAesEncrypt;
+	int iUpdate;
 };
 struct ServerInfo//#define   GET_SERVER_INFO_MSG 0xDD		//获得服务器的消息
 {
@@ -281,6 +282,27 @@ struct UpdatePlayerNumReq//游戏服务器人数更新消息 UPDATA_CENTER_SERVE
 	int	iUpdateNum;		//进1，出-1
 	int totalNum; //总人数 add by alexhy 2016-6-28
 };
+struct QueryCenterServerMsg		//定时查询中心服务器请求
+{
+	MsgHead msgHeadInfo;	
+	int serverId;
+};
+struct CenterServerInfo  //定时查询中心服务器结果
+{
+	MsgHead msgHeadInfo;
+	int	iCenterServerID;		//连接的中心服务器的ID
+	char iCenterServerIP[256];			//中心服务器IP
+	unsigned short sCenterServerPort;	
+};
+struct KickOutServer		//KICK_OUT_SERVER_MSG 踢人
+{
+	MsgHead msgHeadInfo;
+	char cType;//类型，3为金币不够,4账号被禁，8为金币过多，9账号在后台被踢，11上级代理被禁， 12你被另一个玩家踢掉13你账号在游戏中，19房间关闭，20延时太高，21比赛已经结束，22完成了比赛的局数,23多次不出牌,29完成了网吧比赛局数,30选择不同底分时星币够被踢
+	int	iKickUserID;
+	char szKickName[16];//GM的话附带GM的名字给玩家 //客户端和服务器端不统一 ？？？skyhawk
+};
+
+
 struct LogMsgHeadDef//#define		RADIUS_LOG_MAIN_INFO_REQ 	0x70//游戏日志消息类型
 {
 	MsgHead			msgHead;

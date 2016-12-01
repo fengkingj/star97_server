@@ -1,10 +1,12 @@
 #ifndef __PLAYER_NODE_H__
 #define __PLAYER_NODE_H__
 
+class UserInfoResRadius;
 class PlayerNode
 {
 public:
 	void Reset();
+	void InitPlayerNode(UserInfoResRadius* pInfo);
 public:
 	int iUserID;
 	int iSocketFD;
@@ -73,6 +75,7 @@ public:
 	int tmRegisterTime;
 	int cSeeTableNumExtra;
 	int bIfNeedAccount;
+	int iLoginType;
 };
 
 #endif

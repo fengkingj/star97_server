@@ -27,19 +27,19 @@ void InitLog()
 	conf.flag = _LOG_CONSOLE | _LOG_FILE | _LOG_FILE_DAILY;
 	conf.format = LOG_DATE | LOG_TIME | LOG_LEVEL | LOG_MODULE | LOG_MESSAGE | LOG_HEX;
 	
-	if(Config::Instance()->log_lev == "error") conf.level = _ERROR;
-	else if(Config::Instance()->log_lev == "warn") conf.level = _WARN;
-	else if(Config::Instance()->log_lev == "note") conf.level = _NOTE;
-	else if(Config::Instance()->log_lev == "all") conf.level = _ALL;
+	if(Server::Inst()->log_lev == "error") conf.level = _ERROR;
+	else if(Server::Inst()->log_lev == "warn") conf.level = _WARN;
+	else if(Server::Inst()->log_lev == "note") conf.level = _NOTE;
+	else if(Server::Inst()->log_lev == "all") conf.level = _ALL;
 	else conf.level = _DEBUG;
 	
-	strcpy(conf.log_file_name,Config::Instance()->log_file_path.c_str());
+	strcpy(conf.log_file_name,Server::Inst()->log_file_path.c_str());
 	DIR *dir = opendir(conf.log_file_name);
 	if (!dir)
 	{
 		mkdir(conf.log_file_name, 0700);
 	}
-	strcat(conf.log_file_name,"/star97");
+	strcat(conf.log_file_name,"/game");
 	printf("====== log_file[%s]\n",conf.log_file_name);
 	init_log_conf(conf);
 }
@@ -47,11 +47,11 @@ void LoadRadiusConfig(RadiusConf& rd,const char* cname1,const char* cname2,const
 {
 	char cTemp[128],cIP[32];
 	
-	GetValueStr(cTemp,cname1,Config::Instance()->main_config_file.c_str(),csection,0);
+	GetValueStr(cTemp,cname1,Server::Inst()->main_config_file.c_str(),csection,0);
 	sscanf(cTemp,"%[^:]:%d",cIP,&rd.port1);
 	rd.ip1 = cIP;
 	
-	GetValueStr(cTemp,cname2,Config::Instance()->main_config_file.c_str(),csection,0);
+	GetValueStr(cTemp,cname2,Server::Inst()->main_config_file.c_str(),csection,0);
 	sscanf(cTemp,"%[^:]:%d",cIP,&rd.port2);
 	rd.ip2 = cIP;
 }
@@ -61,7 +61,7 @@ void InitArg(int argc, char *argv[])
 	int ret = stat(argv[0],&buf);
 	if(ret == 0)
 	{
-		Config::Instance()->ROOM.iAppMTime = buf.st_mtime; 
+		Room::Inst()->iAppMTime = buf.st_mtime; 
 	}
 	
 	if(argc>1) //有参数
@@ -71,23 +71,23 @@ void InitArg(int argc, char *argv[])
 		{
 			if(strcmp(argv[argIndex],"-config")==0)
 			{
-				Config::Instance()->main_config_file = string(argv[argIndex+1])+"/server.conf";
-				Config::Instance()->server_name = argv[argIndex+2];
+				Server::Inst()->main_config_file = string(argv[argIndex+1])+"/server.conf";
+				Server::Inst()->server_name = argv[argIndex+2];
 				argIndex +=3;
 			}
 			else if(strcmp(argv[argIndex],"-serverport")==0)
 			{
-				sscanf(argv[argIndex+1],"%d",&(Config::Instance()->server_port));
+				sscanf(argv[argIndex+1],"%d",&(Server::Inst()->server_port));
 				argIndex +=2;
 			}
 			else if(strcmp(argv[argIndex],"-serverid")==0)
 			{
-				sscanf(argv[argIndex+1],"%d",&(Config::Instance()->server_id));
+				sscanf(argv[argIndex+1],"%d",&(Server::Inst()->server_id));
 				argIndex +=2;		
 			}
 			else if(strcmp(argv[argIndex],"-type")==0)
 			{
-				sscanf(argv[argIndex+1],"%d",&(Config::Instance()->server_type));
+				sscanf(argv[argIndex+1],"%d",&(Server::Inst()->server_type));
 				argIndex +=2;		
 			}
 			if(argIndex>=argc)
@@ -97,9 +97,9 @@ void InitArg(int argc, char *argv[])
 		}	 
 	}
 	
-	string mainFile = Config::Instance()->main_config_file;
+	string mainFile = Server::Inst()->main_config_file;
 	char cSection[24] = {0};
-	sprintf(cSection,"Server_%s",Config::Instance()->server_name.c_str());
+	sprintf(cSection,"Server_%s",Server::Inst()->server_name.c_str());
 	
 	char cTemp[256] = {0};
 	GetValueStr(cTemp,"log_level",mainFile.c_str(),cSection,"");
@@ -111,22 +111,22 @@ void InitArg(int argc, char *argv[])
 	
 	memset(cTemp,0,sizeof(cTemp));
 	GetValueStr(cTemp,"log_level",mainFile.c_str(),cSection,0);
-	Config::Instance()->log_lev = cTemp;
+	Server::Inst()->log_lev = cTemp;
 	
-	GetValueInt(&(Config::Instance()->heart_time),"heart_time",mainFile.c_str(),cSection,0);
-	GetValueInt(&(Config::Instance()->work_thread_num),"work_thread",mainFile.c_str(),cSection,0);
+	GetValueInt(&(Server::Inst()->heart_time),"heart_time",mainFile.c_str(),cSection,0);
+	GetValueInt(&(Server::Inst()->work_thread_num),"work_thread",mainFile.c_str(),cSection,0);
 	
-	LoadRadiusConfig(Config::Instance()->account_server,"radius_server","radius_server2",cSection);
-	LoadRadiusConfig(Config::Instance()->room_server,"room_server","room_server2",cSection);
-	LoadRadiusConfig(Config::Instance()->log_server,"log_server","log_server2",cSection);
+	LoadRadiusConfig(Server::Inst()->account_server,"radius_server","radius_server2",cSection);
+	LoadRadiusConfig(Server::Inst()->room_server,"room_server","room_server2",cSection);
+	LoadRadiusConfig(Server::Inst()->log_server,"log_server","log_server2",cSection);
 	
 	memset(cTemp,0,sizeof(cTemp));
 	GetValueStr(cTemp,"logout_path",mainFile.c_str(),cSection,0);
-	Config::Instance()->log_file_path = cTemp;
+	Server::Inst()->log_file_path = cTemp;
 	
 	memset(cTemp,0,sizeof(cTemp));
 	GetValueStr(cTemp,"data_path",mainFile.c_str(),cSection,0);
-	Config::Instance()->config_data_path = cTemp;
+	Server::Inst()->config_data_path = cTemp;
 }
 
 void StartAllRadius()
@@ -136,10 +136,10 @@ void StartAllRadius()
 	rad->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
 	rad->iType = RAD_ROOM;
 	strcpy(rad->cName,"room_radius");
-	strcpy(rad->cIP1,Config::Instance()->room_server.ip1.c_str());
-	rad->iPort1 = Config::Instance()->room_server.port1;
-	strcpy(rad->cIP2,Config::Instance()->room_server.ip2.c_str());
-	rad->iPort2 = Config::Instance()->room_server.port2;
+	strcpy(rad->cIP1,Server::Inst()->room_server.ip1.c_str());
+	rad->iPort1 = Server::Inst()->room_server.port1;
+	strcpy(rad->cIP2,Server::Inst()->room_server.ip2.c_str());
+	rad->iPort2 = Server::Inst()->room_server.port2;
 	rad->iAesEncrypt = 1;
 	ServiceManage::request_radius_queue->EnQueue(rad.PAK(),rad.LEN());
 	
@@ -148,10 +148,10 @@ void StartAllRadius()
 	rad2->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
 	rad2->iType = RAD_ACCOUNT;
 	strcpy(rad2->cName,"account_radius");
-	strcpy(rad2->cIP1,Config::Instance()->account_server.ip1.c_str());
-	rad2->iPort1 = Config::Instance()->account_server.port1;
-	strcpy(rad2->cIP2,Config::Instance()->account_server.ip2.c_str());
-	rad2->iPort2 = Config::Instance()->account_server.port2;
+	strcpy(rad2->cIP1,Server::Inst()->account_server.ip1.c_str());
+	rad2->iPort1 = Server::Inst()->account_server.port1;
+	strcpy(rad2->cIP2,Server::Inst()->account_server.ip2.c_str());
+	rad2->iPort2 = Server::Inst()->account_server.port2;
 	rad2->iAesEncrypt = 1;
 	ServiceManage::request_radius_queue->EnQueue(rad2.PAK(),rad2.LEN());
 	
@@ -160,10 +160,10 @@ void StartAllRadius()
 	rad3->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
 	rad3->iType = RAD_LOG;
 	strcpy(rad3->cName,"log_radius");
-	strcpy(rad3->cIP1,Config::Instance()->log_server.ip1.c_str());
-	rad3->iPort1 = Config::Instance()->log_server.port1;
-	strcpy(rad3->cIP2,Config::Instance()->log_server.ip2.c_str());
-	rad3->iPort2 = Config::Instance()->log_server.port2;
+	strcpy(rad3->cIP1,Server::Inst()->log_server.ip1.c_str());
+	rad3->iPort1 = Server::Inst()->log_server.port1;
+	strcpy(rad3->cIP2,Server::Inst()->log_server.ip2.c_str());
+	rad3->iPort2 = Server::Inst()->log_server.port2;
 	rad3->iAesEncrypt = 0;
 	ServiceManage::request_radius_queue->EnQueue(rad3.PAK(),rad3.LEN());
 };
@@ -178,16 +178,16 @@ int main(int argc, char *argv[])
 	InitArg(argc,argv);
 	InitLog();
 	
-	printf("====== server_id[%d]\n",Config::Instance()->server_id);
-	printf("====== server_port[%d]\n",Config::Instance()->server_port);
-	printf("====== heart_time[%d]\n",Config::Instance()->heart_time);
-	printf("====== server_type[%d]\n",Config::Instance()->server_type);
-	printf("====== work_thread_num[%d]\n",Config::Instance()->work_thread_num);
-	printf("====== log_lev[%s]\n",Config::Instance()->log_lev.c_str());
-	printf("====== log_file_path[%s]\n",Config::Instance()->log_file_path.c_str());
-	printf("====== server_name[%s]\n",Config::Instance()->server_name.c_str());
-	printf("====== main_config_file[%s]\n",Config::Instance()->main_config_file.c_str());
-	printf("====== config_data_path[%s]\n",Config::Instance()->config_data_path.c_str());
+	printf("====== server_id[%d]\n",Server::Inst()->server_id);
+	printf("====== server_port[%d]\n",Server::Inst()->server_port);
+	printf("====== heart_time[%d]\n",Server::Inst()->heart_time);
+	printf("====== server_type[%d]\n",Server::Inst()->server_type);
+	printf("====== work_thread_num[%d]\n",Server::Inst()->work_thread_num);
+	printf("====== log_lev[%s]\n",Server::Inst()->log_lev.c_str());
+	printf("====== log_file_path[%s]\n",Server::Inst()->log_file_path.c_str());
+	printf("====== server_name[%s]\n",Server::Inst()->server_name.c_str());
+	printf("====== main_config_file[%s]\n",Server::Inst()->main_config_file.c_str());
+	printf("====== config_data_path[%s]\n",Server::Inst()->config_data_path.c_str());
 	
 	sem_t  	ProcBlock;		//用于将主线程永远阻塞的信号量
 	sem_init(&ProcBlock, 0, 0);
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
 	
 	//epoll 线程,接收玩家消息
 	ClientConnection* cc = new ClientConnection(3000);
-	cc->Ini(socket_receive,socket_reply,Config::Instance()->server_port,Config::Instance()->heart_time);
+	cc->Ini(socket_receive,socket_reply,Server::Inst()->server_port,Server::Inst()->heart_time);
 	cc->Start();
 	
 	//消息主线程,负责注册和分d发

@@ -3,7 +3,7 @@
 #include "Service.h"
 #include "lib/SimpleQueue.h"
 #include "GateServer.h"
-#include "Star97Service.h"
+#include "GameService.h"
 #include <string.h>
 
 using namespace std;
@@ -21,12 +21,12 @@ void ServiceManage::StartAllService()
 {
 	if(!_all_service.empty()) return;
 	
-	for(int i=1;i<=Config::Instance()->work_thread_num;++i)
+	for(int i=1;i<=Server::Inst()->work_thread_num;++i)
 	{
-		Service* pService = new Star97Service();
+		Service* pService = new GameService();
 		char cName[32]={0};
 		sprintf(cName,"work_thread_%d",i);
-		pService->Init(i,1,cName);
+		pService->Init(i,ST_GAME,cName);
 		_all_service.push_back(pService);
 		pService->Start();
 	}
@@ -67,17 +67,24 @@ Service* ServiceManage::SocketJoinService(SocketNode* _node)
 	return res;
 }
 
-void ServiceManage::GetOnlineNum(OnlineCount* _online_info)
+void ServiceManage::GetOnlineNum(int& _total,int& _mobile)
 {
-	_online_info->mobile_online = 0;
-	_online_info->real_online = 0;
-	_online_info->total_online = 0;
+	_total = 0;
+	_mobile = 0;
 	for(size_t i=0;i<_all_service.size();++i)
 	{
-		OnlineCount oc = _all_service[i]->OnlineNum();
-		_online_info->mobile_online += oc.mobile_online;
-		_online_info->real_online += oc.real_online;
-		_online_info->total_online += oc.total_online;
+		_total += _all_service[i]->total_online;
+		_mobile += _all_service[i]->mobile_online;
 	}
 }
+int ServiceManage::GetOnlineNum()
+{
+	int num = 0;
+	for(size_t i=0;i<_all_service.size();++i)
+	{
+		num += _all_service[i]->total_online;
+	}
+	return num;
+}
+
 
