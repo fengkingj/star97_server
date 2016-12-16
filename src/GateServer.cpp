@@ -118,15 +118,7 @@ void GateServer::UpdateServerRoomInfo(bool bFirst)
 		msgreq->iRoomOnlineNum[0] = Room::Inst()->iAppMTime;
 		ServiceManage::request_radius_queue->EnQueue(msgreq.PAK(),msgreq.LEN());
 	}
-	
-	//获得房间信息
-	Package<GameRoomInfoReqRadius> msgreq(roomfd);
-	msgreq->msgHeadInfo.cMsgType = GAME_ROOM_INFO_REQ_RADIUS_MSG;
-	msgreq->cIfNeedRoomInfo = 1;
-	msgreq->cRoomNum = MAX_ROOM_NUM;
-	ServiceManage::request_radius_queue->EnQueue(msgreq.PAK(),msgreq.LEN());
-	
-	if(!bFirst)
+	else
 	{
 		//更新在线人数
 		Package<GameRoomInfoReqRadius> msgreq2(roomfd);
@@ -148,6 +140,12 @@ void GateServer::UpdateServerRoomInfo(bool bFirst)
 		}
 		ServiceManage::request_radius_queue->EnQueue(msgreq2.PAK(),msgreq2.LEN());
 	}
+	//获得房间信息
+	Package<GameRoomInfoReqRadius> msgreq(roomfd);
+	msgreq->msgHeadInfo.cMsgType = GAME_ROOM_INFO_REQ_RADIUS_MSG;
+	msgreq->cIfNeedRoomInfo = 1;
+	msgreq->cRoomNum = MAX_ROOM_NUM;
+	ServiceManage::request_radius_queue->EnQueue(msgreq.PAK(),msgreq.LEN());
 }
 //发送服务器IP消息到中心服务器
 void GateServer::SendServerInfoToCServer()

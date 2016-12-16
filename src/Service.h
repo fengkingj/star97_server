@@ -21,7 +21,7 @@ public:
 	inline int ServiceID(){return _service_id;}
 	inline int ServiceType(){return _service_type;}
 	inline char* ServiceName(){return _service_name;}
-	float QueueStress();
+	int QueueStress();
 	
 	void KillNode(int _fd);
 public:

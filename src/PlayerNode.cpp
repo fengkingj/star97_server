@@ -89,3 +89,8 @@ void PlayerNode::InitPlayerNode(UserInfoResRadius* pInfo)
 	bIfNeedAccount = true;
 	iLoginType = pInfo->cLoginType;
 }
+bool PlayerNode::JudgeKickOut()
+{
+	return false;
+}
+

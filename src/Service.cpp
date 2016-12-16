@@ -49,7 +49,7 @@ int Service::Run()
 			OneSecondCall();
 			
 			queue_size+=_msg_queue->Size();
-			queue_count++;
+			++queue_count;
 		}	
 		usleep(1);
 	}
@@ -70,9 +70,9 @@ void Service::KillNode(int _fd)
 	msg->iFD = _fd;
 	ServiceManage::reply_client_queue->EnQueue(msg.PAK(),msg.LEN());
 }
-float Service::QueueStress()
+int Service::QueueStress()
 {
-	float res = (double)queue_size/queue_count;
+	int res = queue_size/queue_count;
 	queue_size = 0;
 	queue_count = 1;
 	return res;

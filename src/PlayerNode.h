@@ -7,6 +7,7 @@ class PlayerNode
 public:
 	void Reset();
 	void InitPlayerNode(UserInfoResRadius* pInfo);
+	bool JudgeKickOut();
 public:
 	int iUserID;
 	int iSocketFD;
