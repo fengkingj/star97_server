@@ -12,9 +12,9 @@ CPPFLAGS = $(DEBUG) $(INCLUDES)
 	$(XX) $(CPPFLAGS) -c $< -o $@
 
 
-SOURCE1 = $(wildcard *.cpp ./lib/*.cpp)
+SOURCE = $(wildcard *.cpp ./Base/*.cpp ./Star97/*.cpp)
 
-OBJS = $(patsubst %.cpp,%.o,$(SOURCE1))
+OBJS = $(patsubst %.cpp,%.o,$(SOURCE))
 
 $(TARGET):$(OBJS)
 	$(XX) $(CPPFLAGS) -o $(TARGET)  $(OBJS) $(LIBS)

@@ -8,15 +8,15 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "lib/SimpleQueue.h"
+#include "Base/SimpleQueue.h"
 #include "log.h"
 #include "conf.h"
-#include "ClientConnection.h"
-#include "GateServer.h"
-#include "Config.h"
-#include "RadiusService.h"
-#include "ServiceManage.h"
-#include "Package.h"
+#include "Base/ClientConnection.h"
+#include "Base/GateService.h"
+#include "Base/Config.h"
+#include "Base/RadiusService.h"
+#include "Star97/Star97ServiceManage.h"
+#include "Base/Package.h"
 
 using namespace std;
 
@@ -129,48 +129,9 @@ void InitArg(int argc, char *argv[])
 	Server::Inst()->config_data_path = cTemp;
 }
 
-void StartAllRadius()
-{
-	//room
-	Package<AddRadiusMsg> rad(1);
-	rad->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
-	rad->iType = RAD_ROOM;
-	strcpy(rad->cName,"room_radius");
-	strcpy(rad->cIP1,Server::Inst()->room_server.ip1.c_str());
-	rad->iPort1 = Server::Inst()->room_server.port1;
-	strcpy(rad->cIP2,Server::Inst()->room_server.ip2.c_str());
-	rad->iPort2 = Server::Inst()->room_server.port2;
-	rad->iAesEncrypt = 1;
-	ServiceManage::request_radius_queue->EnQueue(rad.PAK(),rad.LEN());
-	
-	//account
-	Package<AddRadiusMsg> rad2(1);
-	rad2->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
-	rad2->iType = RAD_ACCOUNT;
-	strcpy(rad2->cName,"account_radius");
-	strcpy(rad2->cIP1,Server::Inst()->account_server.ip1.c_str());
-	rad2->iPort1 = Server::Inst()->account_server.port1;
-	strcpy(rad2->cIP2,Server::Inst()->account_server.ip2.c_str());
-	rad2->iPort2 = Server::Inst()->account_server.port2;
-	rad2->iAesEncrypt = 1;
-	ServiceManage::request_radius_queue->EnQueue(rad2.PAK(),rad2.LEN());
-	
-	//log
-	Package<AddRadiusMsg> rad3(1);
-	rad3->msgHead.cMsgType = THR_ADD_RADIUS_MSG;
-	rad3->iType = RAD_LOG;
-	strcpy(rad3->cName,"log_radius");
-	strcpy(rad3->cIP1,Server::Inst()->log_server.ip1.c_str());
-	rad3->iPort1 = Server::Inst()->log_server.port1;
-	strcpy(rad3->cIP2,Server::Inst()->log_server.ip2.c_str());
-	rad3->iPort2 = Server::Inst()->log_server.port2;
-	rad3->iAesEncrypt = 0;
-	ServiceManage::request_radius_queue->EnQueue(rad3.PAK(),rad3.LEN());
-};
-
 int main(int argc, char *argv[])
 {
-	_note("# V1.0.0.0  2016-10-7 Line捕鱼-明星97-服务器 Starting #");	
+	_note("# %s-服务器 Starting #",Server::Inst()->game_name.c_str());
 	
 	srandom(time(NULL));
 	srand(time(NULL) - 100);
@@ -192,29 +153,14 @@ int main(int argc, char *argv[])
 	sem_t  	ProcBlock;		//用于将主线程永远阻塞的信号量
 	sem_init(&ProcBlock, 0, 0);
 	
-	SimpleQueue* socket_receive = new SimpleQueue("<socket receive queue>",1000);
-	ServiceManage::socket_msg_queue = socket_receive;
-	SimpleQueue* socket_reply = new SimpleQueue("<socket reply queue>",1000);
-	ServiceManage::reply_client_queue = socket_reply;
-	SimpleQueue* radius_request = new SimpleQueue("<radius request queue>",1000);
-	ServiceManage::request_radius_queue = radius_request;
-	
-	//epoll 线程,接收玩家消息
-	ClientConnection* cc = new ClientConnection(3000);
-	cc->Ini(socket_receive,socket_reply,Server::Inst()->server_port,Server::Inst()->heart_time);
-	cc->Start();
-	
-	//消息主线程,负责注册和分d发
-	GateServer* pGate = new GateServer();
-	pGate->Init("<gate server thread>",cc);//
-	pGate->Start();
-	
-	RadiusService* radius = new RadiusService();
-	radius->Start();
-	
 	Config::Instance()->LoadConfig();
-	ServiceManage::StartAllService();
-	StartAllRadius();
+	
+	ServiceManage::instance = new Star97ServiceManage();//start game
+	
+	//启动service
+	ServiceManage::instance->StartGateService();
+	ServiceManage::instance->StartGameService();
+	ServiceManage::instance->StartExtraService();
 	
 	sem_wait(&ProcBlock);		//在此永远阻塞主线程
 	
